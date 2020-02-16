@@ -1,4 +1,4 @@
-package tc.oc.pgm.rotation;
+package tc.oc.pgm.rotation.pools;
 
 import java.util.Collections;
 import java.util.List;
@@ -11,6 +11,8 @@ import tc.oc.pgm.api.PGM;
 import tc.oc.pgm.api.map.MapInfo;
 import tc.oc.pgm.api.map.MapLibrary;
 import tc.oc.pgm.api.match.Match;
+import tc.oc.pgm.rotation.MapOrder;
+import tc.oc.pgm.rotation.MapPoolManager;
 
 /** Rotation of maps, a type of {@link MapOrder} */
 public abstract class MapPool implements MapOrder, Comparable<MapPool> {

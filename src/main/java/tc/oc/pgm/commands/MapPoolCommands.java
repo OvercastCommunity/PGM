@@ -21,11 +21,11 @@ import tc.oc.pgm.api.chat.Audience;
 import tc.oc.pgm.api.map.MapInfo;
 import tc.oc.pgm.api.player.MatchPlayer;
 import tc.oc.pgm.rotation.MapOrder;
-import tc.oc.pgm.rotation.MapPoll;
-import tc.oc.pgm.rotation.MapPool;
 import tc.oc.pgm.rotation.MapPoolManager;
-import tc.oc.pgm.rotation.Rotation;
-import tc.oc.pgm.rotation.VotingPool;
+import tc.oc.pgm.rotation.pools.MapPool;
+import tc.oc.pgm.rotation.pools.Rotation;
+import tc.oc.pgm.rotation.pools.VotingPool;
+import tc.oc.pgm.rotation.vote.MapPoll;
 import tc.oc.pgm.util.PrettyPaginatedResult;
 import tc.oc.util.components.ComponentUtils;
 
@@ -77,7 +77,7 @@ public class MapPoolCommands {
     if (chance && votes != null) {
       double maxWeight = 0, currWeight;
       for (MapInfo map : votes.getMaps()) {
-        chances.put(map, currWeight = MapPoll.getWeight(votes.getMapScore(map)));
+        chances.put(map, currWeight = VotingPool.MAP_PICKER.weigh(map, votes.getMapScore(map)));
         maxWeight += currWeight;
       }
       double finalMaxWeight = maxWeight;

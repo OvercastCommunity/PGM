@@ -1,4 +1,4 @@
-package tc.oc.pgm.rotation;
+package tc.oc.pgm.rotation.pools;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -7,28 +7,34 @@ import tc.oc.pgm.api.map.MapInfo;
 import tc.oc.pgm.api.match.Match;
 import tc.oc.pgm.api.match.MatchScope;
 import tc.oc.pgm.restart.RestartManager;
+import tc.oc.pgm.rotation.MapPoolManager;
+import tc.oc.pgm.rotation.vote.DefaultMapVotePicker;
+import tc.oc.pgm.rotation.vote.MapPoll;
+import tc.oc.pgm.rotation.vote.MapVotePicker;
+import tc.oc.util.collection.VoterSet;
 
 public class VotingPool extends MapPool {
 
-  // Number of maps in the vote, unless not enough maps in pool
-  private static final int MAX_VOTE_OPTIONS = 5;
-  // If maps were single voted, it would avg to this default
-  private static final double DEFAULT_WEIGHT = 1d / MAX_VOTE_OPTIONS;
+  // Arbitrary default of 1 in 5 players liking each map
+  private static final double DEFAULT_SCORE = 0.2;
 
-  // Amount of maps to display on vote
-  private final int VOTE_SIZE;
+  // The algorithm used to pick the maps for next vote.
+  // Eventually should allow other algorithms via config.
+  public static MapVotePicker MAP_PICKER = new DefaultMapVotePicker();
+
+  // How much score to add/remove on a map every cycle
   private final double ADJUST_FACTOR;
+  // The current rating of maps. Eventually should be persisted elsewhere.
   private final Map<MapInfo, Double> mapScores = new HashMap<>();
 
   private MapPoll currentPoll;
 
   public VotingPool(MapPoolManager manager, ConfigurationSection section, String name) {
     super(manager, section, name);
-    VOTE_SIZE = Math.min(MAX_VOTE_OPTIONS, maps.size() - 1);
-    ADJUST_FACTOR = 1d / (maps.size() * MAX_VOTE_OPTIONS);
+    ADJUST_FACTOR = DEFAULT_SCORE / maps.size(); // Make maps tend towards default slowly
 
     for (MapInfo map : maps) {
-      mapScores.put(map, DEFAULT_WEIGHT);
+      mapScores.put(map, DEFAULT_SCORE);
     }
   }
 
@@ -46,10 +52,16 @@ public class VotingPool extends MapPool {
     if (!mapScores.containsKey(currentMap)) return;
     mapScores.replaceAll(
         (mapScores, value) ->
-            value > DEFAULT_WEIGHT
-                ? Math.max(value - ADJUST_FACTOR, DEFAULT_WEIGHT)
-                : Math.min(value + ADJUST_FACTOR, DEFAULT_WEIGHT));
+            value > DEFAULT_SCORE
+                ? Math.max(value - ADJUST_FACTOR, DEFAULT_SCORE)
+                : Math.min(value + ADJUST_FACTOR, DEFAULT_SCORE));
     mapScores.put(currentMap, 0d);
+  }
+
+  private void updateScores(Map<MapInfo, VoterSet> votes) {
+    double voters = votes.values().stream().flatMap(VoterSet::stream).distinct().count();
+    if (voters == 0) return;
+    votes.forEach((m, v) -> mapScores.put(m, Math.max(v.size() / voters, Double.MIN_VALUE)));
   }
 
   @Override
@@ -57,6 +69,7 @@ public class VotingPool extends MapPool {
     if (currentPoll == null) return getRandom();
 
     MapInfo map = currentPoll.finishVote();
+    updateScores(currentPoll.getVotes());
     currentPoll = null;
     return map != null ? map : getRandom();
   }
@@ -88,7 +101,7 @@ public class VotingPool extends MapPool {
               if (manager.getOverriderMap() != null) return;
               // If there is a restart queued, don't start a vote
               if (RestartManager.isQueued()) return;
-              currentPoll = new MapPoll(match, mapScores, VOTE_SIZE);
+              currentPoll = new MapPoll(match, MAP_PICKER.pickMaps(mapScores));
               match.getPlayers().forEach(currentPoll::sendBook);
             });
   }
